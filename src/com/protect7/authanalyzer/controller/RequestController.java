@@ -11,6 +11,8 @@ package com.protect7.authanalyzer.controller;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.List;
+
+import burp.*;
 import com.protect7.authanalyzer.entities.AnalyzerRequestResponse;
 import com.protect7.authanalyzer.entities.OriginalRequestResponse;
 import com.protect7.authanalyzer.entities.Session;
@@ -21,10 +23,6 @@ import com.protect7.authanalyzer.util.CurrentConfig;
 import com.protect7.authanalyzer.util.ExtractionHelper;
 import com.protect7.authanalyzer.util.GenericHelper;
 import com.protect7.authanalyzer.util.RequestModifHelper;
-import burp.BurpExtender;
-import burp.IHttpRequestResponse;
-import burp.IRequestInfo;
-import burp.IResponseInfo;
 
 public class RequestController {
 
@@ -78,9 +76,18 @@ public class RequestController {
 					List<String> modifiedHeaders = RequestModifHelper.getModifiedHeaders(modifiedRequestInfo.getHeaders(), session);
 					byte[] message = BurpExtender.callbacks.getHelpers().buildHttpMessage(modifiedHeaders, modifiedMessageBody);
 
+
 					// Perform modified request
-					IHttpRequestResponse sessionRequestResponse = BurpExtender.callbacks
-							.makeHttpRequest(originalRequestResponse.getHttpService(), message);
+					String newHost = "";
+					for(String header : modifiedHeaders){
+						if (header.startsWith("Host")){
+							newHost = header.substring(header.indexOf(":")+1);
+						}
+					}
+
+					IHttpService service = originalRequestResponse.getHttpService();
+					IHttpService newService = BurpExtender.callbacks.getHelpers().buildHttpService(newHost, service.getPort(), service.getProtocol());
+					IHttpRequestResponse sessionRequestResponse = BurpExtender.callbacks.makeHttpRequest(newService, message);
 				
 					// Analyze Response of modified Request
 					if (sessionRequestResponse.getRequest() != null && sessionRequestResponse.getResponse() != null) {
