@@ -6,15 +6,13 @@ import java.util.List;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import com.protect7.authanalyzer.entities.Token;
+import com.protect7.authanalyzer.gui.dialog.RepeatRequestFilterDialog;
 import com.protect7.authanalyzer.gui.entity.SessionPanel;
 import com.protect7.authanalyzer.gui.entity.TokenPanel;
 import com.protect7.authanalyzer.gui.main.ConfigurationPanel;
-import com.protect7.authanalyzer.util.CurrentConfig;
 import com.protect7.authanalyzer.util.ExtractionHelper;
 import com.protect7.authanalyzer.util.GenericHelper;
 import com.protect7.authanalyzer.util.Globals;
-
-import burp.BurpExtender;
 import burp.IContextMenuFactory;
 import burp.IContextMenuInvocation;
 import burp.IHttpRequestResponse;
@@ -38,8 +36,11 @@ public class ContextMenuController implements IContextMenuFactory {
 		int[] selection = invocation.getSelectionBounds();
 		byte iContext = invocation.getInvocationContext();
 		if(invocation.getSelectedMessages() != null && invocation.getSelectedMessages().length > 0) {
-			// Set Repeat Menu
+			// Set Repeat Request Menu
 			addRepeatRequestMenu(authAnalyzerMenu, invocation);
+			if(invocation.getSelectedMessages().length > 1) {
+				addRepeatWithOptionsMenu(authAnalyzerMenu, invocation);
+			}
 			authAnalyzerMenu.addSeparator();
 			// Set Token Auto Add Menu
 			addAutoSetTokenMenu(authAnalyzerMenu, invocation);
@@ -100,21 +101,18 @@ public class ContextMenuController implements IContextMenuFactory {
 			repeatRequests = new JMenuItem("Repeat Request (1)");
 		}
 		else {
-			repeatRequests = new JMenuItem("Repeat Requests (" + invocation.getSelectedMessages().length + ")");
+			repeatRequests = new JMenuItem("Repeat All Requests (" + invocation.getSelectedMessages().length + ")");
 		}
 		repeatRequests.addActionListener(e -> {
-			for(IHttpRequestResponse message : invocation.getSelectedMessages()) {
-				if(CurrentConfig.getCurrentConfig().isRunning()) {
-					CurrentConfig.getCurrentConfig().performAuthAnalyzerRequest(message);
-				}
-				else {
-					configurationPanel.startStopButtonPressed();
-					CurrentConfig.getCurrentConfig().performAuthAnalyzerRequest(message);
-					configurationPanel.startStopButtonPressed();
-				}
-			}
+			GenericHelper.repeatRequests(invocation.getSelectedMessages(), configurationPanel);
 		});
 		authAnalyzerMenu.add(repeatRequests);	
+	}
+	
+	private void addRepeatWithOptionsMenu(JMenu authAnalyzerMenu, IContextMenuInvocation invocation) {
+		JMenuItem repeatRequests = new JMenuItem("Repeat Requests with Filter Options");
+		repeatRequests.addActionListener(e1 -> new RepeatRequestFilterDialog(authAnalyzerMenu, configurationPanel, invocation.getSelectedMessages()));
+		authAnalyzerMenu.add(repeatRequests);
 	}
 	
 	private void addAutoSetTokenMenu(JMenu authAnalyzerMenu, IContextMenuInvocation invocation) {

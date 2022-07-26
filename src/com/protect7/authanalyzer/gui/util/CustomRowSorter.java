@@ -6,14 +6,18 @@ import javax.swing.RowFilter;
 import javax.swing.RowSorter;
 import javax.swing.SortOrder;
 import javax.swing.table.TableRowSorter;
-
+import com.protect7.authanalyzer.entities.AnalyzerRequestResponse;
 import com.protect7.authanalyzer.entities.OriginalRequestResponse;
+import com.protect7.authanalyzer.entities.Session;
+import com.protect7.authanalyzer.gui.main.CenterPanel;
 import com.protect7.authanalyzer.util.BypassConstants;
+import com.protect7.authanalyzer.util.CurrentConfig;
 
 public class CustomRowSorter extends TableRowSorter<RequestTableModel> {
-
-	public CustomRowSorter(RequestTableModel tableModel, JCheckBox showOnlyMarked, JCheckBox showDuplicates, JCheckBox showBypassed, 
-			JCheckBox showPotentialBypassed, JCheckBox showNotBypassed, JCheckBox showNA, PlaceholderTextField filterText) {
+	
+	public CustomRowSorter(CenterPanel centerPanel, RequestTableModel tableModel, JCheckBox showOnlyMarked, JCheckBox showDuplicates, JCheckBox showBypassed, 
+			JCheckBox showPotentialBypassed, JCheckBox showNotBypassed, JCheckBox showNA, PlaceholderTextField filterText,
+			JCheckBox searchInPath, JCheckBox searchInRequest, JCheckBox searchInResponse) {
 		super(tableModel);
 		showOnlyMarked.addActionListener(e -> tableModel.fireTableDataChanged());
 		showDuplicates.addActionListener(e -> tableModel.fireTableDataChanged());
@@ -30,7 +34,51 @@ public class CustomRowSorter extends TableRowSorter<RequestTableModel> {
 			
 			public boolean include(Entry<?, ?> entry) {
 				if(filterText.getText() != null && !filterText.getText().equals("")) {
-					if(!entry.getStringValue(3).toString().contains(filterText.getText())) {
+					centerPanel.toggleSearchButtonText();
+					boolean containsPattern = false;
+					if(searchInPath.isSelected()) {
+						if(entry.getStringValue(3).toString().contains(filterText.getText())) {
+							containsPattern = true;
+						}
+					}
+					if(searchInRequest.isSelected() && !containsPattern) {	
+						try {
+							int id = Integer.parseInt(entry.getStringValue(0));
+							for (Session session : CurrentConfig.getCurrentConfig().getSessions()) {
+								AnalyzerRequestResponse analyzerRequestResponse = session.getRequestResponseMap().get(id);
+								if(analyzerRequestResponse.getRequestResponse().getRequest() != null) {
+									String response = new String(analyzerRequestResponse.getRequestResponse().getRequest());
+									if(response.contains(filterText.getText())) {
+										containsPattern = true;
+										break;
+									}
+								}
+							}
+						}
+						catch (Exception e) {
+							e.printStackTrace();
+						}
+					}
+					if(searchInResponse.isSelected() && !containsPattern) {	
+						try {
+							int id = Integer.parseInt(entry.getStringValue(0));
+							for (Session session : CurrentConfig.getCurrentConfig().getSessions()) {
+								AnalyzerRequestResponse analyzerRequestResponse = session.getRequestResponseMap().get(id);
+								if(analyzerRequestResponse.getRequestResponse().getResponse() != null) {
+									String response = new String(analyzerRequestResponse.getRequestResponse().getResponse());
+									if(response.contains(filterText.getText())) {
+										containsPattern = true;
+										break;
+									}
+								}
+							}
+						}
+						catch (Exception e) {
+							e.printStackTrace();
+						}
+					}
+					centerPanel.toggleSearchButtonText();
+					if(!containsPattern && (searchInPath.isSelected() || searchInResponse.isSelected() || searchInRequest.isSelected())) {
 						return false;
 					}
 				}

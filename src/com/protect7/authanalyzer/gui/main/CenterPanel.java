@@ -25,6 +25,7 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
+import javax.swing.JSeparator;
 import javax.swing.JSplitPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
@@ -35,7 +36,6 @@ import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import javax.swing.event.RowSorterEvent;
 import javax.swing.event.RowSorterListener;
-
 import com.protect7.authanalyzer.entities.AnalyzerRequestResponse;
 import com.protect7.authanalyzer.entities.OriginalRequestResponse;
 import com.protect7.authanalyzer.entities.Session;
@@ -48,6 +48,7 @@ import com.protect7.authanalyzer.gui.util.RequestTableModel.Column;
 import com.protect7.authanalyzer.util.BypassConstants;
 import com.protect7.authanalyzer.util.CurrentConfig;
 import com.protect7.authanalyzer.util.Diff_match_patch;
+import com.protect7.authanalyzer.util.GenericHelper;
 import com.protect7.authanalyzer.util.Diff_match_patch.Diff;
 import com.protect7.authanalyzer.util.Diff_match_patch.LinesToCharsResult;
 import burp.BurpExtender;
@@ -59,6 +60,7 @@ import burp.IMessageEditorController;
 public class CenterPanel extends JPanel {
 
 	private static final long serialVersionUID = 8472627619821851125L;
+	private final MainPanel mainPanel;
 	private final String TABLE_SETTINGS = "TABLE_SETTINGS";
 	private final CurrentConfig config = CurrentConfig.getCurrentConfig();
 	private final ImageIcon loaderImageIcon = new ImageIcon(this.getClass().getClassLoader().getResource("loader.gif"));
@@ -84,46 +86,50 @@ public class CenterPanel extends JPanel {
 	private final JScrollPane comparisonScrollPane = new JScrollPane(diffPane);
 	private final JSplitPane splitPane;
 	private final JButton clearTableButton;
-	private final JCheckBox showOnlyMarked;
-	private final JCheckBox showDuplicates;
-	private final JCheckBox showBypassed;
-	private final JCheckBox showPotentialBypassed;
-	private final JCheckBox showNotBypassed;
-	private final JCheckBox showNA;
+	private final JCheckBox showOnlyMarked = new JCheckBox("Marked", false);
+	private final JCheckBox showDuplicates = new JCheckBox("Duplicates", true);
+	private final JCheckBox showBypassed = new JCheckBox("Status " + BypassConstants.SAME.getName(), true);
+	private final JCheckBox showPotentialBypassed = new JCheckBox("Status " + BypassConstants.SIMILAR.getName(), true);
+	private final JCheckBox showNotBypassed = new JCheckBox("Status " + BypassConstants.DIFFERENT.getName(), true);
+	private final JCheckBox showNA = new JCheckBox("Status " + BypassConstants.NA.getName(), true);
 	private final PlaceholderTextField filterText;
 	private final JPanel topPanel = new JPanel(new BorderLayout());
 	private final JLabel tableFilterInfoLabel = new JLabel("", SwingConstants.CENTER);
+	private final JLabel pendingRequestsLabel = new JLabel("", SwingConstants.CENTER);
+	private final JCheckBox searchInPath = new JCheckBox("Search in Path", true);
+	private final JCheckBox searchInRequest = new JCheckBox("Search in Request", false);
+	private final JCheckBox searchInResponse = new JCheckBox("Search in Response", false);
+	private final JButton searchButton = new JButton("Search");
 	private int selectedId = -1;
 
-	public CenterPanel() {
+	public CenterPanel(MainPanel mainPanel) {
+		this.mainPanel = mainPanel;
 		setLayout(new BorderLayout());
 		table = new JTable();
 		tablePanel.setBorder(BorderFactory.createLineBorder(Color.gray));
-		
-		JPanel tableFilterPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 30, 5));
-		showOnlyMarked = new JCheckBox("Marked", false);
-		tableFilterPanel.add(showOnlyMarked);
-		showDuplicates = new JCheckBox("Duplicates", true);
-		tableFilterPanel.add(showDuplicates);
-		showBypassed = new JCheckBox(BypassConstants.SAME.getName(), true);
-		tableFilterPanel.add(showBypassed);
-		showPotentialBypassed = new JCheckBox(BypassConstants.SIMILAR.getName(), true);
-		tableFilterPanel.add(showPotentialBypassed);
-		showNotBypassed = new JCheckBox(BypassConstants.DIFFERENT.getName(), true);
-		tableFilterPanel.add(showNotBypassed);
-		showNA = new JCheckBox(BypassConstants.NA.getName(), true);
-		tableFilterPanel.add(showNA);
-		filterText = new PlaceholderTextField(8);
-		filterText.setPlaceholder("Search...");
-		tableFilterPanel.add(filterText);
+		JPanel tableControlPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 30, 5));
+		JButton filterButton = new JButton();
+		filterButton.setIcon(new ImageIcon(this.getClass().getClassLoader().getResource("filter.png")));
+		filterButton.addActionListener(e -> showTableFilterDialog(tableControlPanel));
+		filterText = new PlaceholderTextField(20);
+		filterText.setPlaceholder("Enter Search Pattern...");
+		searchButton.addActionListener(e -> tableModel.fireTableDataChanged());
+		JPanel searchPanel = new JPanel();
+		searchPanel.add(filterText);
+		searchPanel.add(searchButton);
+		tableControlPanel.add(searchPanel);
+		tableControlPanel.add(filterButton);
 		JButton settingsButton = new JButton();
 		settingsButton.setIcon(new ImageIcon(this.getClass().getClassLoader().getResource("settings.png")));
-		settingsButton.addActionListener(e -> showTableSettingsDialog(tableFilterPanel));
-		tableFilterPanel.add(settingsButton);
-		//topPanel.setLayout(new BoxLayout(topPanel, BoxLayout.Y_AXIS));
-		topPanel.add(tableFilterPanel, BorderLayout.NORTH);
+		settingsButton.addActionListener(e -> showTableSettingsDialog(tableControlPanel));
+		tableControlPanel.add(settingsButton);
+		topPanel.add(tableControlPanel, BorderLayout.NORTH);
 		tableFilterInfoLabel.putClientProperty("html.disable", null);
 		topPanel.add(tableFilterInfoLabel, BorderLayout.CENTER);
+		pendingRequestsLabel.setForeground(new Color(240, 110, 0));
+		pendingRequestsLabel.setVisible(false);
+		topPanel.add(pendingRequestsLabel, BorderLayout.SOUTH);
+		
 		tablePanel.add(new JScrollPane(topPanel, JScrollPane.VERTICAL_SCROLLBAR_NEVER, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED), BorderLayout.NORTH);
 	
 		loadTableSettings();
@@ -252,7 +258,6 @@ public class CenterPanel extends JPanel {
 		add(splitPane, BorderLayout.CENTER);
 
 		selectionModel = table.getSelectionModel();
-		//selectionModel.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 		selectionModel.addListSelectionListener(new ListSelectionListener() {
 
 			@Override
@@ -409,15 +414,13 @@ public class CenterPanel extends JPanel {
 							}
 						});
 						JMenuItem repeatRequestItem = new JMenuItem("Repeat Request" + appendix);
-						if (!CurrentConfig.getCurrentConfig().isRunning()) {
-							repeatRequestItem.setEnabled(false);
-						}
 						repeatRequestItem.addActionListener(e -> {
 							Collections.sort(requestResponseList);
-							for (OriginalRequestResponse requestResponse : requestResponseList) {
-								CurrentConfig.getCurrentConfig()
-										.performAuthAnalyzerRequest(requestResponse.getRequestResponse());
+							IHttpRequestResponse[] messages = new IHttpRequestResponse[requestResponseList.size()];
+							for (int i=0; i<requestResponseList.size(); i++) {
+								messages[i] = requestResponseList.get(i).getRequestResponse();
 							}
+							GenericHelper.repeatRequests(messages, mainPanel.getConfigurationPanel());
 						});
 						JMenuItem deleteRowItem = new JMenuItem("Delete Row" + appendix);
 						deleteRowItem.addActionListener(e -> {
@@ -500,13 +503,22 @@ public class CenterPanel extends JPanel {
 		}
 		return list;
 	}
+	
+	public void toggleSearchButtonText() {
+		if(searchButton.getIcon() == null) {
+			searchButton.setIcon(loaderImageIcon);
+		}
+		else {
+			searchButton.setIcon(null);
+		}
+	}
 
 	private void initTableWithModel() {
 		tableModel = new RequestTableModel();
 		table.setModel(tableModel);
 		config.setTableModel(tableModel);
-		sorter = new CustomRowSorter(tableModel, showOnlyMarked, showDuplicates, showBypassed, 
-				showPotentialBypassed, showNotBypassed, showNA, filterText);
+		sorter = new CustomRowSorter(this, tableModel, showOnlyMarked, showDuplicates, showBypassed, 
+				showPotentialBypassed, showNotBypassed, showNA, filterText, searchInPath, searchInRequest, searchInResponse);
 		sorter.addRowSorterListener(new RowSorterListener() {
 			@Override
 			public void sorterChanged(RowSorterEvent e) {
@@ -518,7 +530,7 @@ public class CenterPanel extends JPanel {
 	}
 
 	private void updateTableFilterInfo() {
-		if(table.getRowCount() != tableModel.getRowCount()) {
+		if(table.getRowCount() < tableModel.getRowCount()) {
 			String text = "<html><h3 style='color:red;'>Table Filtered: " + table.getRowCount() + "/"+
 					tableModel.getRowCount()+" Entries Visible...</h3></html>";
 			tableFilterInfoLabel.setText(text);
@@ -529,6 +541,16 @@ public class CenterPanel extends JPanel {
 		}
 		tablePanel.revalidate();
 	}
+	
+	public void updateAmountOfPendingRequests(int amountOfPendingRequests) {
+		if(amountOfPendingRequests == 0) {
+			pendingRequestsLabel.setVisible(false);
+		}
+		else {
+			pendingRequestsLabel.setVisible(true);
+			pendingRequestsLabel.setText("Pending Requests Queue: " + amountOfPendingRequests);
+		}
+	} 
 	
 	private void changeRequestResponseView(boolean force) {
 		if (table.getSelectedRow() != -1) {
@@ -646,28 +668,30 @@ public class CenterPanel extends JPanel {
 		return new JLabel(labelText, JLabel.CENTER);
 	}
 
-	private void updateColumnWidths() {
+	private void updateColumnWidths() {		
 		for (Column column : Column.values()) {
 			if (!columnSet.contains(column)) {
-				for (int i = 0; i < tableModel.getColumnCount(); i++) {
-					if (tableModel.getColumnName(i).endsWith(column.toString())) {
+				for(int i=0; i<table.getColumnModel().getColumnCount(); i++) {
+					String columnName = table.getColumnModel().getColumn(i).getHeaderValue().toString();
+					if(columnName.endsWith(column.toString())) {
 						table.getColumnModel().getColumn(i).setMinWidth(0);
 						table.getColumnModel().getColumn(i).setMaxWidth(0);
 					}
 				}
 			} else {
 				if (column == Column.ID) {
-					table.getColumnModel().getColumn(0).setMaxWidth(40);
-					table.getColumnModel().getColumn(0).setPreferredWidth(40);
+					table.getColumnModel().getColumn(getColumnIdByName(Column.ID)).setMaxWidth(40);
+					table.getColumnModel().getColumn(getColumnIdByName(Column.ID)).setPreferredWidth(40);
 				} else if (column == Column.Host) {
-					table.getColumnModel().getColumn(2).setMaxWidth(10000);
-					table.getColumnModel().getColumn(2).setPreferredWidth(200);
+					table.getColumnModel().getColumn(getColumnIdByName(Column.Host)).setMaxWidth(10000);
+					table.getColumnModel().getColumn(getColumnIdByName(Column.Host)).setPreferredWidth(200);
 				} else if (column == Column.Path) {
-					table.getColumnModel().getColumn(3).setMaxWidth(10000);
-					table.getColumnModel().getColumn(3).setPreferredWidth(400);
+					table.getColumnModel().getColumn(getColumnIdByName(Column.Path)).setMaxWidth(10000);
+					table.getColumnModel().getColumn(getColumnIdByName(Column.Path)).setPreferredWidth(400);
 				} else {
-					for (int i = 0; i < tableModel.getColumnCount(); i++) {
-						if (tableModel.getColumnName(i).endsWith(column.toString())) {
+					for(int i=0; i<table.getColumnModel().getColumnCount(); i++) {
+						String currentColumnName = table.getColumnModel().getColumn(i).getHeaderValue().toString();
+						if(currentColumnName.endsWith(column.toString())) {
 							table.getColumnModel().getColumn(i).setMaxWidth(10000);
 							table.getColumnModel().getColumn(i).setPreferredWidth(80);
 						}
@@ -676,7 +700,39 @@ public class CenterPanel extends JPanel {
 			}
 		}
 	}
-
+	
+	private int getColumnIdByName(Column columnName) {
+		for(int i=0; i<table.getColumnModel().getColumnCount(); i++) {
+			String currentColumnName = table.getColumnModel().getColumn(i).getHeaderValue().toString();
+			if(currentColumnName.endsWith(columnName.toString())) {
+				return i;
+			}
+		}
+		return -1;
+	}
+	
+	private void showTableFilterDialog(Component parent) {
+		JPanel inputPanel = new JPanel();
+		inputPanel.setLayout(new BoxLayout(inputPanel, BoxLayout.PAGE_AXIS));
+		inputPanel.add(new JLabel("Table Filters"));
+		inputPanel.add(showOnlyMarked);
+		inputPanel.add(showDuplicates);
+		inputPanel.add(showBypassed);
+		inputPanel.add(showPotentialBypassed);
+		inputPanel.add(showNotBypassed);
+		inputPanel.add(showNA);
+		
+		inputPanel.add(new JLabel(" "));
+		inputPanel.add(new JSeparator(SwingConstants.HORIZONTAL));
+		inputPanel.add(new JLabel(" "));
+		inputPanel.add(new JLabel("Search Options"));
+		inputPanel.add(searchInPath);
+		inputPanel.add(searchInRequest);
+		inputPanel.add(searchInResponse);	
+		JOptionPane.showConfirmDialog(parent, inputPanel, "Table Filters", JOptionPane.CLOSED_OPTION);
+		
+	}
+	
 	private void showTableSettingsDialog(Component parent) {
 		JPanel inputPanel = new JPanel();
 		inputPanel.setLayout(new BoxLayout(inputPanel, BoxLayout.PAGE_AXIS));
@@ -694,7 +750,7 @@ public class CenterPanel extends JPanel {
 			});
 			inputPanel.add(columnCheckBox);
 		}
-		JOptionPane.showConfirmDialog(parent, inputPanel, "Show / Hide Table Columns", JOptionPane.CLOSED_OPTION);
+		JOptionPane.showConfirmDialog(parent, inputPanel, "Show / Hide Columns", JOptionPane.CLOSED_OPTION);
 		String saveString = columnSet.toString().replaceAll(" ", "").replace("[", "").replace("]", "");
 		BurpExtender.callbacks.saveExtensionSetting(TABLE_SETTINGS, saveString);
 	}
