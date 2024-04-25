@@ -7,6 +7,10 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JSeparator;
+import javax.swing.JTextField;
+import javax.swing.event.DocumentListener;
+import javax.swing.event.DocumentEvent;
+
 import com.protect7.authanalyzer.entities.AutoExtractLocation;
 import com.protect7.authanalyzer.entities.FromToExtractLocation;
 import com.protect7.authanalyzer.entities.TokenLocation;
@@ -15,6 +19,7 @@ import com.protect7.authanalyzer.gui.entity.TokenPanel;
 public class TokenSettingsDialog {
 	
 	public TokenSettingsDialog(TokenPanel tokenPanel) {
+		JTextField aliases = null;
 		JPanel inputPanel = new JPanel();
 		inputPanel.setLayout(new BoxLayout(inputPanel, BoxLayout.PAGE_AXIS));
 		JPanel extractPanel = new JPanel();
@@ -63,6 +68,15 @@ public class TokenSettingsDialog {
 			tokenPanel.setUrlEncoded(urlEncodeTokenValue.isSelected());
 		});
 		inputPanel.add(urlEncodeTokenValue);
+
+		// URL Decode Value
+		JCheckBox urlDecodeTokenValue = new JCheckBox("URL Decode Value");
+		urlDecodeTokenValue.setSelected(tokenPanel.isUrlDecoded());
+		urlDecodeTokenValue.setEnabled(!removeTokenCheckBox.isSelected());
+		urlDecodeTokenValue.addActionListener(e -> {
+			tokenPanel.setUrlDecoded(urlDecodeTokenValue.isSelected());
+		});
+		inputPanel.add(urlDecodeTokenValue);
 		
 		JCheckBox caseSensitiveTokenNameCheckBox = new JCheckBox("Case Sensitive Parameter Name");
 		caseSensitiveTokenNameCheckBox.setSelected(tokenPanel.isCaseSensitiveTokenName());
@@ -90,6 +104,16 @@ public class TokenSettingsDialog {
 			inputPanel.add(locationCheckBox);
 		}
 		inputPanel.add(extractPanel);
+		
+		// add parameter aliases
+		inputPanel.add(new JLabel(" "));
+		inputPanel.add(new JSeparator(JSeparator.HORIZONTAL));
+		inputPanel.add(new JLabel(" "));
+		JLabel paramAliases = new JLabel("<html><strong>Parameter Aliases (Comma seperated)</strong></html>");
+		paramAliases.putClientProperty("html.disable", null);
+		inputPanel.add(paramAliases);
+		aliases = new JTextField(tokenPanel.getAliases(),16);
+		inputPanel.add(aliases);
 			
 		removeTokenCheckBox.addActionListener(e -> {
 			tokenPanel.setFieldsEnabledDisabled();
@@ -128,6 +152,7 @@ public class TokenSettingsDialog {
 	    			});
 	    			extractPanel.add(locationCheckBox);
 	    		}
+
 			}
 	    	if(tokenPanel.isSelectedItem(tokenPanel.OPTION_FROM_TO_STRING)) {
 	    		final ArrayList<JCheckBox> locationCheckBoxList = new ArrayList<JCheckBox>();
@@ -170,6 +195,9 @@ public class TokenSettingsDialog {
 		}
 		setChildComponentsEnabled(extractPanel, !removeTokenCheckBox.isSelected());
 		JOptionPane.showConfirmDialog(tokenPanel, inputPanel, "Parameter Settings for " + tokenPanel.getTokenName(), JOptionPane.CLOSED_OPTION);
+
+		// update Aliases on JOptionPane close
+		tokenPanel.setAliases(aliases.getText());
 	}
 	
 	private void setChildComponentsEnabled(JPanel parent, boolean enabled) {
