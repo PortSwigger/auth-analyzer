@@ -2,12 +2,12 @@ Uuid: 7db49799266c4f85866f54d9eab82c89
 ExtensionType: 1
 Name: Auth Analyzer
 RepoName: auth-analyzer
-ScreenVersion: 1.1.13
-SerialVersion: 26
+ScreenVersion: 1.1.14
+SerialVersion: 27
 MinPlatformVersion: 0
 ProOnly: False
 Author: Simon Reinhart
 ShortDescription: This Burp Extension helps you to find authorization bugs by repeating Proxy requests with self defined headers and tokens.
-EntryPoint: target/AuthAnalyzer-1.1.13-jar-with-dependencies.jar
+EntryPoint: target/AuthAnalyzer-1.1.14-jar-with-dependencies.jar
 BuildCommand: mvn package
 SupportedProducts: Pro, Community 
